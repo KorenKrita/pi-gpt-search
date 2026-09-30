@@ -8,28 +8,24 @@
 
 ## ⚡ Quick Start: 1-Line Installation
 
-Install via npm:
+> This is a fork of [`mateusdcc/pi-gpt-search`](https://github.com/mateusdcc/pi-gpt-search). The npm package `pi-gpt-search` is the upstream version; install this fork from git.
+
+Install via GitHub:
 
 ```bash
-pi install npm:pi-gpt-search
-```
-
-Or install via GitHub:
-
-```bash
-pi install https://github.com/mateusdcc/pi-gpt-search
+pi install git:github.com/KorenKrita/pi-gpt-search
 ```
 
 Or install project-locally for your current repository (`-l` flag):
 
 ```bash
-pi install npm:pi-gpt-search -l
+pi install git:github.com/KorenKrita/pi-gpt-search -l
 ```
 
 Or try it temporarily in a single session without installing:
 
 ```bash
-pi -e npm:pi-gpt-search
+pi -e git:github.com/KorenKrita/pi-gpt-search
 ```
 
 ---
@@ -89,7 +85,7 @@ Supported operations (combine freely in one call):
 | `image_query` | Image search; returns source page, image URL and a text description (images are not attached) |
 | `weather` | Current conditions and forecast for a `location`, optional `start` (YYYY-MM-DD) and `duration` (days). Unknown place names can resolve to a different place, so check the returned location |
 
-**Research sessions.** ref_ids only resolve inside the backend session that produced them. The extension derives that session from the Pi session, so references keep working after `/reload`, resume and fork; a brand-new Pi session starts a fresh backend session.
+**Research sessions.** ref_ids only resolve inside the backend session that produced them. The extension keeps that backend session id stable for a Pi session (recorded in tool results and reused after `/reload` and resume), so references keep working as long as the backend still retains them; retention is not documented, so stale refs fail with a hint to search again or open the full URL. A fork inherits and shares the parent's backend session rather than getting an independent copy. A brand-new Pi session starts a fresh backend session. Sessions created before this version used a random per-process id that cannot be recovered.
 
 **Failures.** The backend reports invalid arguments and unresolved refs inside HTTP 200 bodies. The extension marks these as tool errors (or, for mixed calls, prefixes a `Some operations failed` note while keeping the successful content).
 
