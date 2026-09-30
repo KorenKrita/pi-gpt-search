@@ -4,6 +4,7 @@ import type { WebRunCommand } from "./commands.js";
 export interface FormattedToolOutput {
   content: Array<{ type: "text"; text: string }>;
   details: Record<string, unknown>;
+  isError?: boolean;
 }
 
 export function formatTerminalHyperlink(url: string, text: string): string {
@@ -97,6 +98,18 @@ export function formatWebToolResult(command: WebRunCommand, response: SearchResp
     primaryText = "No output or structured web results returned.";
   }
 
+  const failure = detectOperationFailure(command, response);
+  if (failure.whole && failure.message) {
+    return {
+      content: [{ type: "text", text: `Web action failed: ${failure.message}${FOLLOW_UP_HINT(failure.message)}` }],
+      details: { command, results: response.results, error: failure.message },
+      isError: true,
+    };
+  }
+  if (failure.message) {
+    primaryText = `Some operations failed (${failure.failedCount} of ${failure.totalCount}): ${failure.message}${FOLLOW_UP_HINT(failure.message)}\n\n${primaryText}`;
+  }
+
   return {
     content: [
       {
@@ -107,6 +120,50 @@ export function formatWebToolResult(command: WebRunCommand, response: SearchResp
     details: {
       command,
       results: response.results,
+      ...(failure.message ? { error: failure.message } : {}),
     },
   };
+}
+
+// Error envelopes observed from the endpoint. They are HTTP 200 and only recognisable by shape:
+// the whole output starts with one of these prefixes, or a result is an "Internal Error" entry
+// without a URL whose snippet starts with "Unable to resolve". Page text that merely quotes
+// these phrases does not match.
+const WHOLE_BODY_ERROR_PREFIXES = ["Found no tool response.", "Error parsing function call:"];
+
+function FOLLOW_UP_HINT(message: string): string {
+  return /invalid ref_id/i.test(message)
+    ? " (the reference is unknown in this research session; search again or open the page by its full URL)"
+    : "";
+}
+
+function isErrorResult(r: SearchResult): boolean {
+  return r.title === "Internal Error" && !r.url && /^Unable to resolve\b/.test(r.snippet ?? "");
+}
+
+function countOperations(command: WebRunCommand): number {
+  let total = 0;
+  for (const value of Object.values(command)) {
+    if (Array.isArray(value)) total += value.length;
+  }
+  return total;
+}
+
+function detectOperationFailure(
+  command: WebRunCommand,
+  response: SearchResponse
+): { whole: boolean; message?: string; failedCount: number; totalCount: number } {
+  const totalCount = countOperations(command);
+  const output = (response.output ?? "").trim();
+  const prefix = WHOLE_BODY_ERROR_PREFIXES.find((p) => output.startsWith(p));
+  if (prefix) {
+    return { whole: true, message: output.split("\n")[0].slice(0, 300), failedCount: totalCount, totalCount };
+  }
+
+  const errors = (response.results ?? []).filter(isErrorResult);
+  if (errors.length === 0) return { whole: false, failedCount: 0, totalCount };
+
+  const message = [...new Set(errors.map((r) => r.snippet!))].join("; ");
+  const failedCount = errors.length;
+  return { whole: failedCount >= totalCount, message, failedCount, totalCount };
 }

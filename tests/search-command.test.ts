@@ -78,15 +78,15 @@ test("slash commands render successful output through the Pi transcript", async 
   assert.match(component.render(80).join("\n"), /Search answer/);
 });
 
-test("codex-search invokes its tool path with JSON filters", async () => {
+test("codex-search runs a single-query research command with JSON filters", async () => {
   const { pi, handlers, entries } = createPi();
-  const requests: unknown[] = [];
+  const commands: unknown[] = [];
   const provider: WebSearchProvider = {
-    search: async (request) => {
-      requests.push(request);
-      return { results: [{ title: "Rust", url: "https://rust-lang.org" }] };
+    search: async () => ({ results: [] }),
+    execute: async (command) => {
+      commands.push(command);
+      return { results: [{ title: "Rust", url: "https://rust-lang.org", ref_id: "turn0search0" }] };
     },
-    execute: async () => ({ results: [] }),
     getSessionId: () => "test-session",
     setSessionId: () => {},
   };
@@ -97,13 +97,12 @@ test("codex-search invokes its tool path with JSON filters", async () => {
     createContext([])
   );
 
-  assert.deepEqual(requests, [{
-    query: "Rust releases",
-    recency: 7,
-    domains: ["rust-lang.org"],
+  assert.deepEqual(commands, [{
+    search_query: [{ q: "Rust releases", recency: 7, domains: ["rust-lang.org"] }],
     response_length: "medium",
   }]);
-  assert.match((entries[0].data as { text: string }).text, /Search results for: "Rust releases"/);
+  assert.match((entries[0].data as { text: string }).text, /Rust/);
+  assert.match((entries[0].data as { text: string }).text, /turn0search0/);
 });
 
 test("codex-research accepts a shorthand query and JSON research commands", async () => {
@@ -154,4 +153,29 @@ test("slash commands report invalid arguments without making a request", async (
   assert.equal(calls, 0);
   assert.equal(entries.length, 0);
   assert.deepEqual(notices, ["/codex-research expects valid JSON parameters"]);
+});
+
+test("slash commands report HTTP 200 backend failures as errors", async () => {
+  const { pi, handlers, entries } = createPi();
+  const notices: string[] = [];
+  const failed = {
+    output: "Found no tool response. This likely means the arguments you provided were not valid.",
+    results: [],
+  };
+  const provider: WebSearchProvider = {
+    search: async () => failed,
+    execute: async () => failed,
+    getSessionId: () => "test-session",
+    setSessionId: () => {},
+  };
+
+  registerSearchCommand(pi, provider);
+  for (const name of ["codex-search", "codex-research"]) {
+    await handlers.get(name)!("rust", createContext([], notices));
+  }
+
+  assert.equal(notices.length, 2);
+  for (const notice of notices) assert.match(notice, /^Web action failed: Found no tool response/);
+  assert.equal(entries.length, 2);
+  for (const entry of entries) assert.match((entry.data as { text: string }).text, /Web action failed/);
 });

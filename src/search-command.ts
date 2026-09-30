@@ -10,7 +10,7 @@ import {
 import type { SearchResponse } from "./normalize.js";
 import { formatWebToolResult } from "./output.js";
 import type { WebSearchProvider } from "./provider.js";
-import { describeCommandStatus, formatSearchResponseText } from "./web-format.js";
+import { describeCommandStatus } from "./web-format.js";
 
 export const SEARCH_OUTPUT_ENTRY_TYPE = "gpt-search-output";
 
@@ -70,14 +70,18 @@ async function runCommand(
   name: string,
   ctx: CommandContext,
   command: WebRunCommand,
-  execute: () => Promise<SearchResponse>,
-  format: (response: SearchResponse) => string
+  execute: () => Promise<SearchResponse>
 ): Promise<void> {
   ctx.ui.setStatus(name, statusFor(command));
   try {
     const response = await execute();
-    appendOutput(pi, format(response));
-    ctx.ui.notify(`Web action succeeded (${response.results.length} results)`, "info");
+    const formatted = formatWebToolResult(command, response);
+    appendOutput(pi, formatted.content[0].text);
+    if (formatted.isError) {
+      ctx.ui.notify(`Web action failed: ${String(formatted.details.error)}`, "error");
+    } else {
+      ctx.ui.notify(`Web action succeeded (${response.results.length} results)`, "info");
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.ui.notify(`Web action failed: ${message}`, "error");
@@ -106,14 +110,7 @@ export function registerSearchCommand(pi: ExtensionAPI, provider: WebSearchProvi
       return;
     }
     const command = toSearchCommand(request);
-    await runCommand(
-      pi,
-      "codex-search",
-      ctx,
-      command,
-      () => provider.search(request, ctx.signal),
-      (response) => formatSearchResponseText(request.query, response)
-    );
+    await runCommand(pi, "codex-search", ctx, command, () => provider.execute(command, undefined, ctx.signal));
   });
 
   registerCommand(pi, "codex-research", "Run the codex-research tool directly", async (args, ctx) => {
@@ -125,13 +122,6 @@ export function registerSearchCommand(pi: ExtensionAPI, provider: WebSearchProvi
       ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
       return;
     }
-    await runCommand(
-      pi,
-      "codex-research",
-      ctx,
-      command,
-      () => provider.execute(command, undefined, ctx.signal),
-      (response) => formatWebToolResult(command, response).content[0].text
-    );
+    await runCommand(pi, "codex-research", ctx, command, () => provider.execute(command, undefined, ctx.signal));
   });
 }

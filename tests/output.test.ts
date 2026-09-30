@@ -55,3 +55,82 @@ test("output - formatWebToolResult handles empty output and empty results", () =
   const formatted = formatWebToolResult(cmd, response);
   assert.equal(formatted.content[0].text, "No output or structured web results returned.");
 });
+
+// Backend operation failures arrive as HTTP 200 bodies; these shapes were observed on the live endpoint.
+const NO_RESPONSE = "Found no tool response. This likely means the arguments you provided were not valid.";
+const badOpenBlock =
+  "Internal Error ()\n\uE200cite\uE202turn1view0\uE201 [wordlim: 200] Unable to resolve open call due to invalid ref_id argument\nL0: Unable to resolve open call due to invalid ref_id argument\n";
+const badOpenResult = {
+  type: "text_result",
+  ref_id: "turn1view0",
+  title: "Internal Error",
+  snippet: "Unable to resolve open call due to invalid ref_id argument",
+};
+
+test("output - HTTP 200 'no tool response' body is reported as an error", () => {
+  const formatted = formatWebToolResult({ search_query: [{ q: "x" }] }, { output: NO_RESPONSE, results: [] });
+  assert.equal(formatted.isError, true);
+  assert.match(formatted.content[0].text, /not valid/);
+});
+
+test("output - HTTP 200 function-call parse error body is reported as an error", () => {
+  const output = "Error parsing function call: Invalid function_name='run' call: kwargs={...}. Expected: type run = ...";
+  const formatted = formatWebToolResult({ search_query: [{ q: "x" }] }, { output, results: [] });
+  assert.equal(formatted.isError, true);
+});
+
+test("output - all operations failing with Internal Error results is reported as an error", () => {
+  const formatted = formatWebToolResult(
+    { open: [{ ref_id: "turn1view0" }] },
+    { output: badOpenBlock, results: [badOpenResult] }
+  );
+  assert.equal(formatted.isError, true);
+  assert.match(formatted.content[0].text, /invalid ref_id/);
+  assert.match(formatted.content[0].text, /search again|open\(URL\)|open\(\{ ref_id: URL/i);
+});
+
+test("output - partial failure keeps successful content and flags the failed operation", () => {
+  const output =
+    "Rust (https://rust-lang.org)\n\uE200cite\uE202turn0search0\uE201 Rust release notes\n" +
+    "--------------------------------------------------------------------------------\n" +
+    badOpenBlock;
+  const formatted = formatWebToolResult(
+    { search_query: [{ q: "rust" }], open: [{ ref_id: "turn9view9" }] },
+    {
+      output,
+      results: [
+        { type: "text_result", ref_id: "turn0search0", title: "Rust", url: "https://rust-lang.org" },
+        badOpenResult,
+      ],
+    }
+  );
+  assert.notEqual(formatted.isError, true);
+  assert.match(formatted.content[0].text, /Rust release notes/);
+  assert.match(formatted.content[0].text, /1 of 2 .*failed|Some operations failed/i);
+  assert.match(formatted.content[0].text, /invalid ref_id/);
+});
+
+test("output - weather/image content with no structured results is a success", () => {
+  const output = "\uE200cite\uE202turn0forecast0\uE201 Weather for Paris, France: Current Conditions: Rain, 70°F (21°C)";
+  const formatted = formatWebToolResult({ weather: [{ location: "Paris" }] }, { output, results: [] });
+  assert.notEqual(formatted.isError, true);
+  assert.match(formatted.content[0].text, /Weather for Paris/);
+});
+
+test("output - an empty-but-valid search is not an error", () => {
+  const output = "Empty search results\nNo results were found for the provided queries";
+  const formatted = formatWebToolResult({ search_query: [{ q: "zzzz" }] }, { output, results: [] });
+  assert.notEqual(formatted.isError, true);
+  assert.match(formatted.content[0].text, /No results were found/);
+});
+
+test("output - a normal page that merely quotes error phrases is not an error", () => {
+  const output =
+    "Debugging tips (https://example.com/blog)\n\uE200cite\uE202turn0view0\uE201 L0: If you see \"Internal Error ()\" or " +
+    `"${NO_RESPONSE}" in logs, retry.`;
+  const formatted = formatWebToolResult(
+    { open: [{ ref_id: "https://example.com/blog" }] },
+    { output, results: [{ type: "text_result", ref_id: "turn0view0", title: "Debugging tips", url: "https://example.com/blog" }] }
+  );
+  assert.notEqual(formatted.isError, true);
+});
