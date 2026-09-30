@@ -179,3 +179,31 @@ test("slash commands report HTTP 200 backend failures as errors", async () => {
   assert.equal(entries.length, 2);
   for (const entry of entries) assert.match((entry.data as { text: string }).text, /Web action failed/);
 });
+
+test("slash commands and the tool share one backend research session per Pi session", async () => {
+  const { pi, handlers, entries } = createPi();
+  const ids: Array<string | undefined> = [];
+  const provider: WebSearchProvider = {
+    search: async () => ({ results: [] }),
+    execute: async (_command, options) => {
+      ids.push(options?.sessionId);
+      return { output: "ok", results: [] };
+    },
+    getSessionId: () => "provider-default",
+    setSessionId: () => {},
+  };
+  const branch: unknown[] = [];
+  const ctx = { ...createContext([]), sessionManager: { getSessionId: () => "sess-cmd", getBranch: () => branch } };
+
+  registerSearchCommand(pi, provider);
+  await handlers.get("codex-search")!("rust", ctx);
+  assert.equal(ids[0], "pi-session-sess-cmd");
+  assert.equal((entries[0].data as { researchSessionId?: string }).researchSessionId, "pi-session-sess-cmd");
+
+  // After a fork the Pi session id changes but the branch still carries the recorded id.
+  branch.push({ type: "custom", customType: SEARCH_OUTPUT_ENTRY_TYPE, data: entries[0].data });
+  const forked = { ...ctx, sessionManager: { getSessionId: () => "sess-forked", getBranch: () => branch } };
+  const { createResearchTool } = await import("../src/research-tool");
+  await createResearchTool(provider).execute("c1", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, forked as any);
+  assert.equal(ids[1], "pi-session-sess-cmd");
+});

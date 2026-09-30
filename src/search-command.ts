@@ -7,18 +7,19 @@ import {
   type SearchToolRequest,
   type WebRunCommand,
 } from "./commands.js";
-import type { SearchResponse } from "./normalize.js";
 import { formatWebToolResult } from "./output.js";
 import type { WebSearchProvider } from "./provider.js";
+import { resolveResearchSessionId, SEARCH_OUTPUT_ENTRY_TYPE, type ResearchSessionContext } from "./research-tool.js";
 import { describeCommandStatus } from "./web-format.js";
 
-export const SEARCH_OUTPUT_ENTRY_TYPE = "gpt-search-output";
+export { SEARCH_OUTPUT_ENTRY_TYPE };
 
 interface SearchOutputEntry {
   text: string;
+  researchSessionId?: string;
 }
 
-interface CommandContext {
+interface CommandContext extends ResearchSessionContext {
   signal?: AbortSignal;
   ui: {
     notify: (message: string, level: "info" | "warning" | "error") => void;
@@ -57,26 +58,29 @@ function toSearchCommand(request: SearchToolRequest): WebRunCommand {
   return { search_query: [searchQuery], response_length: request.response_length };
 }
 
-function appendOutput(pi: ExtensionAPI, text: string): void {
-  pi.appendEntry?.(SEARCH_OUTPUT_ENTRY_TYPE, { text });
-}
-
 function statusFor(command: WebRunCommand): string {
   return describeCommandStatus(command);
 }
 
 async function runCommand(
   pi: ExtensionAPI,
+  provider: WebSearchProvider,
   name: string,
   ctx: CommandContext,
-  command: WebRunCommand,
-  execute: () => Promise<SearchResponse>
+  command: WebRunCommand
 ): Promise<void> {
+  // Resolve once per request so a session switch mid-flight cannot mix refs across sessions.
+  const researchSessionId = resolveResearchSessionId(ctx);
   ctx.ui.setStatus(name, statusFor(command));
   try {
-    const response = await execute();
+    const response = await provider.execute(
+      command,
+      researchSessionId ? { sessionId: researchSessionId } : undefined,
+      ctx.signal
+    );
     const formatted = formatWebToolResult(command, response);
-    appendOutput(pi, formatted.content[0].text);
+    const entry: SearchOutputEntry = { text: formatted.content[0].text, ...(researchSessionId ? { researchSessionId } : {}) };
+    pi.appendEntry?.(SEARCH_OUTPUT_ENTRY_TYPE, entry);
     if (formatted.isError) {
       ctx.ui.notify(`Web action failed: ${String(formatted.details.error)}`, "error");
     } else {
@@ -110,7 +114,7 @@ export function registerSearchCommand(pi: ExtensionAPI, provider: WebSearchProvi
       return;
     }
     const command = toSearchCommand(request);
-    await runCommand(pi, "codex-search", ctx, command, () => provider.execute(command, undefined, ctx.signal));
+    await runCommand(pi, provider, "codex-search", ctx, command);
   });
 
   registerCommand(pi, "codex-research", "Run the codex-research tool directly", async (args, ctx) => {
@@ -122,6 +126,6 @@ export function registerSearchCommand(pi: ExtensionAPI, provider: WebSearchProvi
       ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
       return;
     }
-    await runCommand(pi, "codex-research", ctx, command, () => provider.execute(command, undefined, ctx.signal));
+    await runCommand(pi, provider, "codex-research", ctx, command);
   });
 }

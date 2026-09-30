@@ -254,3 +254,64 @@ test("extension registers only the codex-research tool", async () => {
   assert.deepEqual(tools, ["codex-research"]);
   assert.deepEqual(commands, ["codex-search", "codex-research"]);
 });
+
+function sessionCtx(sessionId: string, branch: unknown[] = []) {
+  return { sessionManager: { getSessionId: () => sessionId, getBranch: () => branch } } as any;
+}
+
+function recordingProvider() {
+  const ids: Array<string | undefined> = [];
+  return {
+    ids,
+    provider: {
+      async execute(_cmd: unknown, options?: { sessionId?: string }) {
+        ids.push(options?.sessionId);
+        return { output: "ok", results: [] };
+      },
+      async search() {
+        return { results: [] };
+      },
+      getSessionId: () => "provider-default",
+      setSessionId() {},
+    },
+  };
+}
+
+test("research session - derives a stable backend id from the Pi session and records it", async () => {
+  const { ids, provider } = recordingProvider();
+  const tool = createResearchTool(provider);
+  const ctx = sessionCtx("sess-A");
+  const r1: any = await tool.execute("c1", { search_query: [{ q: "a" }] }, undefined, undefined, ctx);
+  const r2: any = await tool.execute("c2", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, ctx);
+  assert.equal(ids[0], ids[1]);
+  assert.ok(ids[0]?.includes("sess-A"));
+  assert.equal(r1.details.researchSessionId, ids[0]);
+  assert.equal(r2.details.researchSessionId, ids[0]);
+});
+
+test("research session - separate Pi sessions get separate backend ids", async () => {
+  const { ids, provider } = recordingProvider();
+  const tool = createResearchTool(provider);
+  await tool.execute("c1", { search_query: [{ q: "a" }] }, undefined, undefined, sessionCtx("sess-A"));
+  await tool.execute("c2", { search_query: [{ q: "a" }] }, undefined, undefined, sessionCtx("sess-B"));
+  assert.notEqual(ids[0], ids[1]);
+});
+
+test("research session - a fork reuses the backend id recorded on its branch", async () => {
+  const { ids, provider } = recordingProvider();
+  const tool = createResearchTool(provider);
+  const branch = [
+    { type: "message", message: { role: "toolResult", toolName: "codex-research", details: { researchSessionId: "pi-session-original" } } },
+    { type: "message", message: { role: "user", content: "hi" } },
+  ];
+  await tool.execute("c1", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, sessionCtx("sess-forked", branch));
+  assert.equal(ids[0], "pi-session-original");
+});
+
+test("research session - slash command entries on the branch are honoured too", async () => {
+  const { ids, provider } = recordingProvider();
+  const tool = createResearchTool(provider);
+  const branch = [{ type: "custom", customType: "gpt-search-output", data: { text: "x", researchSessionId: "pi-session-cmd" } }];
+  await tool.execute("c1", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, sessionCtx("sess-X", branch));
+  assert.equal(ids[0], "pi-session-cmd");
+});
