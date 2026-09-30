@@ -81,8 +81,11 @@ async function runCommand(
     const formatted = formatWebToolResult(command, response);
     const entry: SearchOutputEntry = { text: formatted.content[0].text, ...(researchSessionId ? { researchSessionId } : {}) };
     pi.appendEntry?.(SEARCH_OUTPUT_ENTRY_TYPE, entry);
+    const partialError = formatted.details.error;
     if (formatted.isError) {
-      ctx.ui.notify(`Web action failed: ${String(formatted.details.error)}`, "error");
+      ctx.ui.notify(`Web action failed: ${String(partialError)}`, "error");
+    } else if (partialError) {
+      ctx.ui.notify(formatted.content[0].text.split("\n")[0], "warning");
     } else {
       ctx.ui.notify(`Web action succeeded (${response.results.length} results)`, "info");
     }

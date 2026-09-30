@@ -132,8 +132,12 @@ export function validateWebRunCommand(cmd: unknown): WebRunCommand {
       }
       const item: WeatherLookup = { location };
       if (raw.start !== undefined && raw.start !== null) {
-        if (typeof raw.start !== "string") throw new InvalidCommandError(`weather[${idx}].start must be a YYYY-MM-DD string`);
-        item.start = raw.start.trim();
+        const start = typeof raw.start === "string" ? raw.start.trim() : "";
+        const parsed = new Date(`${start}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== start) {
+          throw new InvalidCommandError(`weather[${idx}].start must be a real date in YYYY-MM-DD format`);
+        }
+        item.start = start;
       }
       if (raw.duration !== undefined && raw.duration !== null) {
         if (typeof raw.duration !== "number") throw new InvalidCommandError(`weather[${idx}].duration must be a number of days`);

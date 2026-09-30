@@ -134,3 +134,23 @@ test("output - a normal page that merely quotes error phrases is not an error", 
   );
   assert.notEqual(formatted.isError, true);
 });
+
+test("output - fields that are not backend operations do not count toward the total", () => {
+  const formatted = formatWebToolResult(
+    { open: [{ ref_id: "turn999view0" }], domains: ["example.com"] } as any,
+    { output: badOpenBlock, results: [badOpenResult] }
+  );
+  assert.equal(formatted.isError, true);
+});
+
+test("output - a real page whose title starts with an error prefix is not an error", () => {
+  for (const prefix of ["Error parsing function call: troubleshooting", "Found no tool response. A guide"]) {
+    const output = `${prefix} (https://example.com/debugging)\n\uE200cite\uE202turn0view0\uE201 L0: page body`;
+    const formatted = formatWebToolResult(
+      { open: [{ ref_id: "https://example.com/debugging" }] },
+      { output, results: [{ type: "text_result", ref_id: "turn0view0", title: prefix, url: "https://example.com/debugging" }] }
+    );
+    assert.notEqual(formatted.isError, true, prefix);
+    assert.match(formatted.content[0].text, /page body/);
+  }
+});

@@ -1,5 +1,5 @@
 import type { SearchResponse, SearchResult } from "./normalize.js";
-import type { WebRunCommand } from "./commands.js";
+import { OPERATION_KEYS, type WebRunCommand } from "./commands.js";
 
 export interface FormattedToolOutput {
   content: Array<{ type: "text"; text: string }>;
@@ -142,11 +142,7 @@ function isErrorResult(r: SearchResult): boolean {
 }
 
 function countOperations(command: WebRunCommand): number {
-  let total = 0;
-  for (const value of Object.values(command)) {
-    if (Array.isArray(value)) total += value.length;
-  }
-  return total;
+  return OPERATION_KEYS.reduce((total, key) => total + (command[key]?.length ?? 0), 0);
 }
 
 function detectOperationFailure(
@@ -155,7 +151,9 @@ function detectOperationFailure(
 ): { whole: boolean; message?: string; failedCount: number; totalCount: number } {
   const totalCount = countOperations(command);
   const output = (response.output ?? "").trim();
-  const prefix = WHOLE_BODY_ERROR_PREFIXES.find((p) => output.startsWith(p));
+  // Whole-body envelopes come with no page results; a real page may have a title with the same words.
+  const hasPageResult = (response.results ?? []).some((r) => Boolean(r.url));
+  const prefix = !hasPageResult && WHOLE_BODY_ERROR_PREFIXES.find((p) => output.startsWith(p));
   if (prefix) {
     return { whole: true, message: output.split("\n")[0].slice(0, 300), failedCount: totalCount, totalCount };
   }

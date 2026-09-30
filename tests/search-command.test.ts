@@ -207,3 +207,27 @@ test("slash commands and the tool share one backend research session per Pi sess
   await createResearchTool(provider).execute("c1", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, forked as any);
   assert.equal(ids[1], "pi-session-sess-cmd");
 });
+
+test("slash commands warn instead of announcing success on partial failure", async () => {
+  const { pi, handlers } = createPi();
+  const notices: Array<[string, string]> = [];
+  const provider: WebSearchProvider = {
+    search: async () => ({ results: [] }),
+    execute: async () => ({
+      output: "Rust (https://rust-lang.org) body",
+      results: [
+        { ref_id: "turn0search0", title: "Rust", url: "https://rust-lang.org" },
+        { ref_id: "turn1view0", title: "Internal Error", snippet: "Unable to resolve open call due to invalid ref_id argument" },
+      ],
+    }),
+    getSessionId: () => "s",
+    setSessionId: () => {},
+  };
+  registerSearchCommand(pi, provider);
+  const ctx = createContext([]);
+  ctx.ui.notify = (message: string, level: string) => notices.push([message, level]);
+  await handlers.get("codex-research")!('{"search_query":[{"q":"rust"}],"open":[{"ref_id":"turn9view9"}]}', ctx);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0][1], "warning");
+  assert.match(notices[0][0], /1 of 2/);
+});

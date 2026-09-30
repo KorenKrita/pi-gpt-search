@@ -45,7 +45,9 @@ export const ResearchToolParameters = Type.Object({
     Type.Array(
       Type.Object({
         location: Type.String({ description: "City or place name, e.g. 'Paris' or 'Jinzhou, China'" }),
-        start: Type.Optional(Type.String({ description: "First forecast day as YYYY-MM-DD (default: today)" })),
+        start: Type.Optional(
+          Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "First forecast day as YYYY-MM-DD (default: today)" })
+        ),
         duration: Type.Optional(Type.Number({ description: "Number of forecast days" })),
       }),
       { description: "Weather conditions and forecast lookups" }

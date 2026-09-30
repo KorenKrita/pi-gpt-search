@@ -116,3 +116,10 @@ test("commands - image_query and weather reject malformed entries", () => {
   assert.throws(() => validateWebRunCommand({ weather: [{ location: "Paris", duration: "3" }] }), /duration/);
   assert.throws(() => validateWebRunCommand({ weather: [{ location: "Paris", start: 3 }] }), /start/);
 });
+
+test("commands - weather.start must be a real YYYY-MM-DD date", () => {
+  for (const start of ["tomorrow", "2026-02-30", "2026-13-01", "  ", "2026-1-3"]) {
+    assert.throws(() => validateWebRunCommand({ weather: [{ location: "Paris", start }] }), /start/, start);
+  }
+  assert.doesNotThrow(() => validateWebRunCommand({ weather: [{ location: "Paris", start: "2028-02-29" }] }));
+});
