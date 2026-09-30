@@ -90,3 +90,29 @@ test("commands - serializeWebRunPayload formats correct payload structure", () =
     },
   });
 });
+
+test("commands - image_query and weather validate and serialize", () => {
+  const cmd = validateWebRunCommand({
+    image_query: [{ q: " golden retriever ", recency: 30, domains: [" unsplash.com "] }],
+    weather: [{ location: " Paris ", start: "2026-10-03", duration: 3 }],
+  });
+  assert.deepEqual(cmd, {
+    image_query: [{ q: "golden retriever", recency: 30, domains: ["unsplash.com"] }],
+    weather: [{ location: "Paris", start: "2026-10-03", duration: 3 }],
+  });
+  const payload = serializeWebRunPayload(cmd, { sessionId: "s" }) as { commands: Record<string, unknown> };
+  assert.deepEqual(payload.commands.image_query, cmd.image_query);
+  assert.deepEqual(payload.commands.weather, cmd.weather);
+});
+
+test("commands - image_query or weather alone is a valid operation", () => {
+  assert.doesNotThrow(() => validateWebRunCommand({ image_query: [{ q: "cat" }] }));
+  assert.doesNotThrow(() => validateWebRunCommand({ weather: [{ location: "Tokyo" }] }));
+});
+
+test("commands - image_query and weather reject malformed entries", () => {
+  assert.throws(() => validateWebRunCommand({ image_query: [{ q: "  " }] }), /image_query\[0\]\.q/);
+  assert.throws(() => validateWebRunCommand({ weather: [{ location: "" }] }), /weather\[0\]\.location/);
+  assert.throws(() => validateWebRunCommand({ weather: [{ location: "Paris", duration: "3" }] }), /duration/);
+  assert.throws(() => validateWebRunCommand({ weather: [{ location: "Paris", start: 3 }] }), /start/);
+});

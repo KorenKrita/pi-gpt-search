@@ -315,3 +315,17 @@ test("research session - slash command entries on the branch are honoured too", 
   await tool.execute("c1", { open: [{ ref_id: "turn0search0" }] }, undefined, undefined, sessionCtx("sess-X", branch));
   assert.equal(ids[0], "pi-session-cmd");
 });
+
+test("research tool schema exposes image_query and weather", () => {
+  const tool = createResearchTool(fakeProvider);
+  const props = (tool.parameters as { properties: Record<string, unknown> }).properties;
+  assert.ok(props.image_query, "image_query in schema");
+  assert.ok(props.weather, "weather in schema");
+  assert.match(tool.description, /image_query/);
+  assert.match(tool.description, /weather/);
+});
+
+test("describeCommandStatus covers image and weather lookups", () => {
+  assert.equal(describeCommandStatus({ image_query: [{ q: "cat" }] } as any), 'Searching images for "cat"...');
+  assert.equal(describeCommandStatus({ weather: [{ location: "Paris" }] } as any), 'Looking up weather for "Paris"...');
+});

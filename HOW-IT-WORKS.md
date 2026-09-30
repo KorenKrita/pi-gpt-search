@@ -77,7 +77,7 @@ The `codex-research` tool introduces a full research harness capability. Instead
                |      (Gemini / Claude / DeepSeek / Ollama / etc.)     |
                +---------------------------+---------------------------+
                                            |
-                                           v Tool Call: codex-research({ search_query, open, find, click, response_length })
+                                           v Tool Call: codex-research({ search_query, image_query, open, find, click, weather })
                +-------------------------------------------------------+
                |                codex-research Research Harness        |
                |                       (research-tool.ts)             |
@@ -129,9 +129,10 @@ Handles Pi extension registration:
 
 ### 2. Research Tool (`src/research-tool.ts`)
 Defines `codex-research` and its shared execution path:
-- Supports `search_query`, `open`, `find`, `click`, and `response_length`.
+- Supports `search_query`, `image_query`, `open`, `find`, `click`, `weather`, and `response_length`.
+- Resolves the backend research session id per request from the Pi session (`resolveResearchSessionId`): the newest id recorded on the current branch (tool result `details.researchSessionId` or slash-command entries) wins, otherwise `pi-session-<Pi session id>`. This keeps ref_ids valid across reload, resume and fork.
 - Reports progress through `onUpdate()`.
-- Formats provider responses before returning them to the model and renderer.
+- Formats provider responses before returning them to the model and renderer, and marks HTTP 200 backend operation failures (`Found no tool response.`, `Error parsing function call:`, `Internal Error` results with `Unable to resolve ...`) as `isError`.
 
 ### 3. Shared Tool Presentation
 Shared tool concerns are separated by responsibility:

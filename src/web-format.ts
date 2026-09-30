@@ -33,5 +33,13 @@ export function describeCommandStatus(command: WebRunCommand): string {
     const clicks = command.click.map((c) => `element #${c.id} in ${c.ref_id}`).join(", ");
     parts.push(`Clicking ${clicks}`);
   }
+  if (command.image_query && command.image_query.length > 0) {
+    const q = command.image_query.map((s) => `"${s.q}"`).join(", ");
+    parts.push(`Searching images for ${q}`);
+  }
+  if (command.weather && command.weather.length > 0) {
+    const locations = command.weather.map((w) => `"${w.location}"`).join(", ");
+    parts.push(`Looking up weather for ${locations}`);
+  }
   return parts.length > 0 ? parts.join("; ") + "..." : "Executing web research action...";
 }

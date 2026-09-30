@@ -79,6 +79,22 @@ pi --model antigravity/gemini-3.5-flash "What is the latest release of Rust and 
 
 For simple lookups the model issues a single `search_query`. It can also conduct deep, iterative web research with multi-query execution, page content inspection, pattern finding, and link navigation. The model manages the research steps and sources for you.
 
+Supported operations (combine freely in one call):
+
+| Operation | Purpose |
+|---|---|
+| `search_query` | Web search; results carry ref_ids such as `turn0search0` |
+| `open` | Open a ref_id or a full URL (HTML and PDF; PDFs come back with per-page line markers) |
+| `find` / `click` | Search inside, or follow a link from, an opened page |
+| `image_query` | Image search; returns source page, image URL and a text description (images are not attached) |
+| `weather` | Current conditions and forecast for a `location`, optional `start` (YYYY-MM-DD) and `duration` (days). Unknown place names can resolve to a different place, so check the returned location |
+
+**Research sessions.** ref_ids only resolve inside the backend session that produced them. The extension derives that session from the Pi session, so references keep working after `/reload`, resume and fork; a brand-new Pi session starts a fresh backend session.
+
+**Failures.** The backend reports invalid arguments and unresolved refs inside HTTP 200 bodies. The extension marks these as tool errors (or, for mixed calls, prefixes a `Some operations failed` note while keeping the successful content).
+
+The endpoint also accepts `finance`, `sports`, `time` and PDF `screenshot`; they are intentionally not exposed (limited market coverage, strict parameters, local clock available, and screenshot output is not returned in readable form).
+
 ## Example Log Output (with `PI_WEB_SEARCH_DEBUG=1`):
 
 ```text

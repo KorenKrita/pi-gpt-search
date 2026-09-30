@@ -21,11 +21,24 @@ export interface FindOperation {
 
 export type ResponseLength = "short" | "medium" | "long";
 
+/** Backend operations exposed by this extension, in serialization order. */
+export const OPERATION_KEYS = ["search_query", "image_query", "open", "click", "find", "weather"] as const;
+
+export interface WeatherLookup {
+  location: string;
+  /** First forecast day, YYYY-MM-DD (default: today) */
+  start?: string;
+  /** Number of forecast days */
+  duration?: number;
+}
+
 export interface WebRunCommand {
   search_query?: SearchQuery[];
+  image_query?: SearchQuery[];
   open?: OpenOperation[];
   click?: ClickOperation[];
   find?: FindOperation[];
+  weather?: WeatherLookup[];
   response_length?: ResponseLength;
 }
 
@@ -81,17 +94,19 @@ export function validateWebRunCommand(cmd: unknown): WebRunCommand {
   const obj = cmd as Record<string, unknown>;
   const validated: WebRunCommand = {};
 
-  if ("search_query" in obj && obj.search_query !== undefined) {
-    if (!Array.isArray(obj.search_query)) {
-      throw new InvalidCommandError("search_query must be an array");
+  for (const key of ["search_query", "image_query"] as const) {
+    const list = obj[key];
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) {
+      throw new InvalidCommandError(`${key} must be an array`);
     }
-    validated.search_query = obj.search_query.map((sq, idx) => {
+    validated[key] = list.map((sq, idx) => {
       if (typeof sq !== "object" || sq === null || typeof (sq as { q?: unknown }).q !== "string") {
-        throw new InvalidCommandError(`search_query[${idx}] must be an object with a string 'q' property`);
+        throw new InvalidCommandError(`${key}[${idx}] must be an object with a string 'q' property`);
       }
       const item: SearchQuery = { q: (sq as { q: string }).q.trim() };
       if (!item.q) {
-        throw new InvalidCommandError(`search_query[${idx}].q cannot be empty`);
+        throw new InvalidCommandError(`${key}[${idx}].q cannot be empty`);
       }
       if (typeof (sq as { recency?: unknown }).recency === "number") {
         item.recency = (sq as { recency: number }).recency;
@@ -100,6 +115,29 @@ export function validateWebRunCommand(cmd: unknown): WebRunCommand {
         item.domains = (sq as { domains: string[] }).domains
           .filter((d) => typeof d === "string" && d.trim())
           .map((d) => d.trim());
+      }
+      return item;
+    });
+  }
+
+  if (obj.weather !== undefined) {
+    if (!Array.isArray(obj.weather)) {
+      throw new InvalidCommandError("weather must be an array");
+    }
+    validated.weather = obj.weather.map((w, idx) => {
+      const raw = (typeof w === "object" && w !== null ? w : {}) as Record<string, unknown>;
+      const location = typeof raw.location === "string" ? raw.location.trim() : "";
+      if (!location) {
+        throw new InvalidCommandError(`weather[${idx}].location must be a non-empty string`);
+      }
+      const item: WeatherLookup = { location };
+      if (raw.start !== undefined && raw.start !== null) {
+        if (typeof raw.start !== "string") throw new InvalidCommandError(`weather[${idx}].start must be a YYYY-MM-DD string`);
+        item.start = raw.start.trim();
+      }
+      if (raw.duration !== undefined && raw.duration !== null) {
+        if (typeof raw.duration !== "number") throw new InvalidCommandError(`weather[${idx}].duration must be a number of days`);
+        item.duration = raw.duration;
       }
       return item;
     });
@@ -184,14 +222,10 @@ export function validateWebRunCommand(cmd: unknown): WebRunCommand {
     validated.response_length = rl;
   }
 
-  const hasOperations =
-    (validated.search_query && validated.search_query.length > 0) ||
-    (validated.open && validated.open.length > 0) ||
-    (validated.click && validated.click.length > 0) ||
-    (validated.find && validated.find.length > 0);
+  const hasOperations = OPERATION_KEYS.some((key) => (validated[key]?.length ?? 0) > 0);
 
   if (!hasOperations) {
-    throw new InvalidCommandError("Command must contain at least one operation: search_query, open, click, or find");
+    throw new InvalidCommandError(`Command must contain at least one operation: ${OPERATION_KEYS.join(", ")}`);
   }
 
   return validated;
@@ -205,17 +239,9 @@ export interface EndpointPayloadOptions {
 export function serializeWebRunPayload(command: WebRunCommand, options?: EndpointPayloadOptions): Record<string, unknown> {
   const commandsObj: Record<string, unknown> = {};
 
-  if (command.search_query && command.search_query.length > 0) {
-    commandsObj.search_query = command.search_query;
-  }
-  if (command.open && command.open.length > 0) {
-    commandsObj.open = command.open;
-  }
-  if (command.click && command.click.length > 0) {
-    commandsObj.click = command.click;
-  }
-  if (command.find && command.find.length > 0) {
-    commandsObj.find = command.find;
+  for (const key of OPERATION_KEYS) {
+    const list = command[key];
+    if (list && list.length > 0) commandsObj[key] = list;
   }
   if (command.response_length) {
     commandsObj.response_length = command.response_length;
