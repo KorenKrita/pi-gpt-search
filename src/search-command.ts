@@ -96,24 +96,6 @@ export function registerSearchCommand(pi: ExtensionAPI, provider: WebSearchProvi
     return new Text(theme.fg("toolOutput", text), 1, 0);
   });
 
-  registerCommand(pi, "gpt-search", "Search the web directly using Codex", async (args, ctx) => {
-    let command: WebRunCommand;
-    try {
-      command = toSearchCommand(parseSearchArgs(args));
-    } catch (error) {
-      ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
-      return;
-    }
-    await runCommand(
-      pi,
-      "gpt-search",
-      ctx,
-      command,
-      () => provider.execute(command, undefined, ctx.signal),
-      (response) => formatWebToolResult(command, response).content[0].text
-    );
-  });
-
   registerCommand(pi, "codex-search", "Run the codex-search tool directly", async (args, ctx) => {
     let request: SearchToolRequest;
     try {

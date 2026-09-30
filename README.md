@@ -38,7 +38,7 @@ pi -e npm:pi-gpt-search
 
 - 🚀 **Zero GPT Tokens Spent:** Pure web retrieval via OpenAI's backend endpoint. No GPT/Codex LLM turns are executed, meaning **0 input tokens, 0 output tokens, and 0 reasoning credits are billed**.
 - 👑 **Model Sovereign:** Your active Pi model (e.g., Gemini 3.5 Flash / Gemini 3.1 Pro) remains the sole reasoning model.
-- 🛠️ **Slash Command & LLM Tools:** Works both automatically as LLM tools (`codex-search` & `codex-research`) and as a direct user command (`/gpt-search`).
+- 🛠️ **Slash Command & LLM Tools:** Works automatically as a single LLM tool (`codex-research`) and as direct user commands (`/codex-search`, `/codex-research`).
 - 🔑 **Credential Reuse:** Automatically uses your existing `codex login` session (`~/.codex/auth.json`) or custom `.env` tokens.
 - 🛡️ **Data Privacy:** Query-only by default. Does not send conversation history, project files, or system prompts to search.
 
@@ -49,11 +49,6 @@ pi -e npm:pi-gpt-search
 ```text
 Pi Coding Agent
  └── Gemini (or active model)
-      ├── codex-search(query: "latest Rust release")
-      │    └── Codex/OpenAI Standalone Search API (/codex/alpha/search)
-      │         └── Structured Results (Title, URL, Snippet)
-      │              └── Gemini continues reasoning & answers user
-      │
       └── codex-research(search_query: [...], open: [...], find: [...])
            └── Multi-Step Web Research Harness
                 └── Deep document content, pattern matching & citations
@@ -65,26 +60,24 @@ Pi Coding Agent
 
 ### 1. Direct Slash Commands
 
-Run either Codex tool yourself without spending LLM tokens:
+Run Codex search yourself without spending LLM tokens:
 
 ```text
 /codex-search Rust 1.97 release notes
 /codex-research OpenAI Codex GitHub repository
 ```
 
-Use `codex-search` for a quick lookup and `codex-research` when you want more comprehensive results. The direct commands preserve their tool defaults: `short` for `codex-search` and `long` for `codex-research`.
+Use `/codex-search` for a quick single-query lookup (`short` output, accepts `{"query","recency","domains","response_length"}` JSON) and `/codex-research` for full research commands (`long` output by default).
 
-`/gpt-search <query>` remains available as a simple legacy alias.
+### 2. Automatic LLM Tool: `codex-research`
 
-### 2. Automatic LLM Tool: `codex-search`
-
-Ask any model a question requiring current facts (single-query lookup):
+Ask any model a question requiring current facts:
 
 ```bash
 pi --model antigravity/gemini-3.5-flash "What is the latest release of Rust and what changed?"
 ```
 
-The model uses it automatically for quick lookups that need current information.
+For simple lookups the model issues a single `search_query`. It can also conduct deep, iterative web research with multi-query execution, page content inspection, pattern finding, and link navigation. The model manages the research steps and sources for you.
 
 ## Example Log Output (with `PI_WEB_SEARCH_DEBUG=1`):
 
@@ -92,14 +85,6 @@ The model uses it automatically for quick lookups that need current information.
 [PI_WEB_SEARCH_DEBUG] req_id=maqk8a5 query="latest Rust release version and date 2026" provider=codex
 [PI_WEB_SEARCH_DEBUG] req_id=maqk8a5 status=200 elapsed_ms=1863 results=41
 ```
-
-### 3. Automatic Advanced Research Harness Tool: `codex-research`
-
-Ask models to conduct deep, iterative web research with multi-query execution, page content inspection, pattern finding, and link navigation. The model manages the research steps and sources for you.
-
-### 4. Legacy Alias: `web` (deprecated)
-
-The pre-rename tool name `web` is kept as a backward-compatible alias. It delegates to the same implementation as `codex-research` and prepends a deprecation notice on every invocation. New integrations should use `codex-research` directly.
 
 ---
 

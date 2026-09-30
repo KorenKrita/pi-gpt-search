@@ -60,18 +60,3 @@ export const ResearchToolParameters = Type.Object({
     })
   ),
 });
-
-export const SearchToolParameters = Type.Object({
-  query: Type.String({ description: "The search query to look up on the web" }),
-  recency: Type.Optional(
-    Type.Number({ description: "Recency filter in days (default: no filter)" })
-  ),
-  domains: Type.Optional(
-    Type.Array(Type.String(), { description: "Allowed domain filters (default: no filter)" })
-  ),
-  response_length: Type.Optional(
-    Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], {
-      description: "Desired length of returned content output (default: short)",
-    })
-  ),
-});

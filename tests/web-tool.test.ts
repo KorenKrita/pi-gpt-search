@@ -1,8 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createResearchTool } from "../src/research-tool";
-import { createSearchTool } from "../src/search-tool";
-import { createLegacyWebTool, WEB_DEPRECATION_MESSAGE } from "../src/legacy-web-tool";
 import { describeCommandStatus } from "../src/web-format";
 
 const fakeProvider = {
@@ -48,9 +46,7 @@ test("web-tool - describeCommandStatus formats readable action summaries", () =>
 
 test("web-tool - tools expose themed renderResult producing structured sections", () => {
   const tool = createResearchTool(fakeProvider);
-  const compat = createSearchTool(fakeProvider);
   assert.equal(typeof tool.renderResult, "function");
-  assert.equal(typeof compat.renderResult, "function");
 
   const result = {
     details: {
@@ -180,7 +176,7 @@ test("web-tool - expanded renderer shows actual open/find/click backend content"
   assert.ok(expandedClick.includes("Read more about the feature here."));
 });
 
-test("web-tool - legacy web alias delegates and shows deprecation, codex-research does not", async () => {
+test("web-tool - codex-research delegates to provider with long default", async () => {
   let executedCommand: unknown = null;
   const provider = {
     async execute(cmd: unknown) {
@@ -200,17 +196,10 @@ test("web-tool - legacy web alias delegates and shows deprecation, codex-researc
   };
 
   const research = createResearchTool(provider);
-  const legacy = createLegacyWebTool(provider);
-  assert.equal(legacy.name, "web");
   assert.equal(research.name, "codex-research");
 
   const res = (await research.execute("call_1", { search_query: [{ q: "rust" }] }, undefined, undefined, {} as any)) as any;
-  assert.ok(!res.content[0].text.includes(WEB_DEPRECATION_MESSAGE), "codex-research should not show deprecation");
   assert.ok(res.content[0].text.startsWith("Backend output"));
-
-  const legacyRes = (await legacy.execute("call_2", { search_query: [{ q: "rust" }] }, undefined, undefined, {} as any)) as any;
-  assert.ok(legacyRes.content[0].text.includes(WEB_DEPRECATION_MESSAGE), "web alias should show deprecation");
-  assert.ok(legacyRes.content[0].text.includes("Backend output"), "web alias should delegate to research implementation");
   assert.deepEqual(executedCommand, {
     search_query: [{ q: "rust" }],
     response_length: "long",
@@ -254,65 +243,14 @@ test("web-tool - createResearchTool invokes onUpdate progress handler", async ()
   assert.ok(res.content[0].text.startsWith("Backend output for web tool"));
 });
 
-test("web-tool - createSearchTool translates query into search and calls onUpdate", async () => {
-  let searchCalledWith: unknown = null;
-  const updates: any[] = [];
-
-  const provider = {
-    async execute() {
-      return { results: [] };
-    },
-    async search(req: { query: string }) {
-      searchCalledWith = req;
-      return {
-        results: [{ title: "Result", url: "https://example.com" }],
-      };
-    },
-    getSessionId() {
-      return "test_session";
-    },
-    setSessionId() {},
-  };
-
-  const compatTool = createSearchTool(provider);
-  assert.equal(compatTool.name, "codex-search");
-
-  const res = (await compatTool.execute(
-    "call_2",
-    { query: "pi agent" },
-    undefined,
-    (update) => {
-      updates.push(update);
-    },
-    {} as any
-  )) as any;
-
-  assert.equal(updates.length, 1);
-  assert.equal(updates[0].content[0].text, 'Searching web for "pi agent"...');
-  assert.deepEqual(searchCalledWith, {
-    query: "pi agent",
-    recency: undefined,
-    domains: undefined,
-    response_length: "short",
-  });
-  assert.match(res.content[0].text, /Result/);
-
-  await compatTool.execute(
-    "call_3",
-    {
-      query: "release notes",
-      recency: 30,
-      domains: ["example.com"],
-      response_length: "medium",
-    },
-    undefined,
-    undefined,
-    {} as any
-  );
-  assert.deepEqual(searchCalledWith, {
-    query: "release notes",
-    recency: 30,
-    domains: ["example.com"],
-    response_length: "medium",
-  });
+test("extension registers only the codex-research tool", async () => {
+  const { default: extension } = await import("../src/index");
+  const tools: string[] = [];
+  const commands: string[] = [];
+  extension({
+    registerTool: (tool: { name: string }) => tools.push(tool.name),
+    registerCommand: (name: string) => commands.push(name),
+  } as any);
+  assert.deepEqual(tools, ["codex-research"]);
+  assert.deepEqual(commands, ["codex-search", "codex-research"]);
 });

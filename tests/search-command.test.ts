@@ -60,10 +60,10 @@ test("slash commands render successful output through the Pi transcript", async 
   };
 
   registerSearchCommand(pi, provider);
-  assert.deepEqual([...handlers.keys()], ["gpt-search", "codex-search", "codex-research"]);
+  assert.deepEqual([...handlers.keys()], ["codex-search", "codex-research"]);
   assert.ok(harness.renderer);
 
-  await handlers.get("gpt-search")!(" Rust ", createContext(statuses));
+  await handlers.get("codex-research")!(" Rust ", createContext(statuses));
 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].type, SEARCH_OUTPUT_ENTRY_TYPE);

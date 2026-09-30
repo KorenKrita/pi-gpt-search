@@ -6,9 +6,9 @@
 
 ## 🏗️ System Architecture & Data Flow
 
-### 1. Simple Single-Query Search Flow (`codex-search`)
+### 1. Simple Single-Query Search Flow
 
-The `codex-search` tool provides a simple interface for single-query searches (the primary mode from earlier releases). The active Pi model sends a single search query string, which is formatted into a search action and executed against the OpenAI standalone search engine endpoint.
+For a simple lookup, the active Pi model calls `codex-research` with a single `search_query` entry, which is executed against the OpenAI standalone search engine endpoint. (The `/codex-search` slash command offers the same single-query shape to users.)
 
 ```text
                +-------------------------------------------------------+
@@ -21,11 +21,11 @@ The `codex-search` tool provides a simple interface for single-query searches (t
                |      (Gemini / Claude / DeepSeek / Ollama / etc.)     |
                +---------------------------+---------------------------+
                                            |
-                                           v Tool Call: codex-search({ query: "..." })
+                                           v Tool Call: codex-research({ search_query: [{ q: "..." }] })
                +-------------------------------------------------------+
-               |              codex-search Search Tool                |
-               |                       (search-tool.ts)               |
-               |     - Wraps query into a standalone search command   |
+               |              codex-research Tool                     |
+               |                     (research-tool.ts)               |
+               |     - Validates the search command                   |
                |     - Emits live TUI status updates via onUpdate      |
                +---------------------------+---------------------------+
                                            |
@@ -124,8 +124,8 @@ The `codex-research` tool introduces a full research harness capability. Instead
 
 ### 1. Extension Entrypoint (`src/index.ts`)
 Handles Pi extension registration:
-- Registers `codex-search`, `codex-research`, and the deprecated `web` alias.
-- Registers direct user slash commands `/codex-search` and `/codex-research`, plus the legacy `/gpt-search` alias.
+- Registers the `codex-research` tool.
+- Registers direct user slash commands `/codex-search` and `/codex-research`.
 
 ### 2. Research Tool (`src/research-tool.ts`)
 Defines `codex-research` and its shared execution path:
@@ -133,23 +133,13 @@ Defines `codex-research` and its shared execution path:
 - Reports progress through `onUpdate()`.
 - Formats provider responses before returning them to the model and renderer.
 
-### 3. Search Tool (`src/search-tool.ts`)
-Defines the single-query `codex-search` tool:
-- Accepts `query`, `recency`, `domains`, and `response_length`.
-- Translates the request into the provider's standalone search contract.
-
-### 4. Legacy Alias (`src/legacy-web-tool.ts`)
-Preserves backward compatibility for `web`:
-- Delegates to the same execution path as `codex-research`.
-- Prepends a deprecation notice to every legacy invocation.
-
-### 5. Shared Tool Presentation
+### 3. Shared Tool Presentation
 Shared tool concerns are separated by responsibility:
 - `src/web-schemas.ts`: TypeBox parameters and model browsing guidance.
 - `src/web-format.ts`: Search result text and command status formatting.
 - `src/render.ts`: Themed collapsed and expanded result rendering.
 
-### 6. Command DTOs & Validation (`src/commands.ts`)
+### 4. Command DTOs & Validation (`src/commands.ts`)
 Defines command validation and endpoint serialization:
 - `search_query`: Multi-query array with optional `recency` and `domains` filters.
 - `open`: Opens document content by `ref_id` with an optional `lineno`.
@@ -157,25 +147,25 @@ Defines command validation and endpoint serialization:
 - `find`: Searches for a pattern inside a document.
 - `response_length`: Controls output granularity (`short`, `medium`, `long`).
 
-### 7. Provider Contract (`src/provider.ts`)
+### 5. Provider Contract (`src/provider.ts`)
 Defines the `WebSearchProvider` contract for standalone search and rich research commands with shared session identity.
 
-### 8. Codex Transport Layer (`src/codex-provider.ts`)
+### 6. Codex Transport Layer (`src/codex-provider.ts`)
 Interacts directly with OpenAI's search backend:
 - Resolves authentication from `~/.codex/auth.json` or environment variables.
 - Maintains a stable session ID across `search`, `open`, and `find` calls.
 - Retries transient HTTP 502, 503, and 504 responses.
 
-### 9. Output Formatter & Citation Engine (`src/output.ts`)
+### 7. Output Formatter & Citation Engine (`src/output.ts`)
 Transforms backend responses into model-facing tool results:
 - Preserves cleaned backend output in `content[0].text`.
 - Converts private citation markers and turn IDs into terminal hyperlinks.
 - Appends a numbered source index for model attribution and direct command output.
 
-### 10. Response Normalization (`src/normalize.ts`)
+### 8. Response Normalization (`src/normalize.ts`)
 Normalizes supported response fields: `ref_id`, `url`, `title`, `snippet`, `domain`, and `type`.
 
-### 11. Error Hierarchy (`src/errors.ts`)
+### 9. Error Hierarchy (`src/errors.ts`)
 Provides typed errors for authentication, authorization, rate limits, HTTP failures, timeouts, and cancellation.
 
 ---
