@@ -87,8 +87,8 @@ export function createResearchTool(provider: WebSearchProvider): ToolDefinition 
     name: RESEARCH_TOOL_NAME,
     label: "Codex Research Harness",
     description:
-      "Execute iterative web research actions (search_query, image_query, open, find, click, weather, response_length) against live web search & document browser engine. Use to search current information, inspect official docs, find images, look up weather, and perform iterative multi-step research. open also accepts a full URL, including PDFs.",
-    promptSnippet: "Perform iterative web research with search, open, find, click, plus image search and weather",
+      "Live web research. Actions: search_query, image_query, weather, open, find, click. Results carry ref_ids for follow-up open/find/click calls in the same session.",
+    promptSnippet: "Live web search, page reading, image search and weather",
     promptGuidelines: BROWSING_GUIDELINES,
     parameters: ResearchToolParameters,
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
