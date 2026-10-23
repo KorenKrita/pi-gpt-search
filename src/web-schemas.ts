@@ -74,10 +74,10 @@ export const ResearchToolParameters = Type.Object({
   find: Type.Optional(
     Type.Array(
       Type.Object({
-        ref_id: Type.String({ description: "Reference ID of opened document" }),
-        pattern: Type.String({ description: "Pattern to find in document" }),
+        ref_id: Type.String({ description: "ref_id of an opened document" }),
+        pattern: Type.String({ description: "Text to find" }),
       }),
-      { description: "Find pattern inside document" }
+      { description: "Find text inside an opened document (not file search)" }
     )
   ),
   response_length: Type.Optional(
